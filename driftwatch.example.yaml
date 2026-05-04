@@ -1,0 +1,37 @@
+# driftwatch example configuration
+# Copy to driftwatch.yaml and adjust to your environment.
+
+# How often to run all configured checks.
+check_interval: 60s
+
+webhook:
+  # Required: URL to POST drift alerts to.
+  url: https://hooks.example.com/drift-alerts
+
+  # Optional: additional HTTP headers (e.g. for authentication).
+  headers:
+    Authorization: "Bearer YOUR_TOKEN_HERE"
+    Content-Type: "application/json"
+
+  # Timeout for each webhook HTTP request.
+  timeout: 10s
+
+checks:
+  # Monitor a critical config file for unexpected changes.
+  - name: nginx-main-config
+    type: file
+    target: /etc/nginx/nginx.conf
+    params:
+      expected_hash: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+  # Ensure a required process is running.
+  - name: sshd-process
+    type: process
+    target: sshd
+
+  # Check that an environment variable holds an expected value.
+  - name: app-env-mode
+    type: env
+    target: APP_ENV
+    params:
+      expected_value: production

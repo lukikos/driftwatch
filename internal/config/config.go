@@ -59,6 +59,9 @@ func (c *Config) validate() error {
 	if c.Webhook.Timeout <= 0 {
 		c.Webhook.Timeout = 10 * time.Second
 	}
+	if len(c.Checks) == 0 {
+		return fmt.Errorf("at least one check must be defined")
+	}
 	for i, ch := range c.Checks {
 		if ch.Name == "" {
 			return fmt.Errorf("checks[%d]: name is required", i)

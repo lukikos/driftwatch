@@ -2,28 +2,40 @@
 
 webhook_url: "https://hooks.example.com/services/XXX/YYY/ZZZ"
 interval: 60s
-cooldown: 10m
+cooldown: 5m
 
 checks:
-  - name: check-api-key-env
+  - name: check-app-env
     type: env_var
     fields:
-      var: API_KEY
-      expected: "supersecret"
+      name: APP_ENV
+      expected: production
 
-  - name: check-hosts-file
+  - name: check-hosts-hash
     type: file_hash
     fields:
       path: /etc/hosts
-      expected_hash: "abc123def456"
+      expected: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
-  - name: check-app-http
+  - name: check-sshd-config-banner
+    type: file_content
+    fields:
+      path: /etc/ssh/sshd_config
+      contains: "PermitRootLogin no"
+
+  - name: check-sshd-config-port
+    type: file_content
+    fields:
+      path: /etc/ssh/sshd_config
+      matches: "^Port \\d+"
+
+  - name: check-api-health
     type: http_status
     fields:
       url: "http://localhost:8080/health"
       expected: "200"
 
-  - name: check-nginx-process
+  - name: check-nginx-running
     type: process_running
     fields:
       process: nginx
@@ -34,14 +46,27 @@ checks:
       host: localhost
       port: "5432"
 
-  - name: check-web-container
+  - name: check-redis-container
     type: docker_container
     fields:
-      container: my-web-app
+      container: redis
       expected_status: running
 
-  - name: check-worker-container
-    type: docker_container
+  - name: check-kernel-version
+    type: sys_command
     fields:
-      container: my-worker
-      expected_status: running
+      command: uname
+      args: "-r"
+      expected: "5.15"
+
+  - name: check-dns-resolve
+    type: dns_resolve
+    fields:
+      host: example.com
+      expected: "93.184.216.34"
+
+  - name: check-ssl-expiry
+    type: ssl_expiry
+    fields:
+      host: example.com:443
+      min_days: "30"

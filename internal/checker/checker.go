@@ -1,40 +1,41 @@
-// Package checker evaluates individual infrastructure checks and reports drift.
+// Package checker evaluates individual drift checks.
 package checker
 
-import (
-	"fmt"
+import "fmt"
 
-	"github.com/user/driftwatch/internal/config"
-)
-
-// Checker runs configured checks and reports whether drift was detected.
+// Checker dispatches named check types to their implementations.
 type Checker struct{}
 
-// New returns a new Checker instance.
+// New returns a new Checker.
 func New() *Checker {
 	return &Checker{}
 }
 
-// Check evaluates a single check and returns (drifted, message, error).
-func (c *Checker) Check(check config.Check) (bool, string, error) {
-	switch check.Type {
-	case "env":
-		return checkEnvVar(check)
+// Check runs the named check type with the provided fields.
+// Returns (drifted, message, error).
+func (c *Checker) Check(checkType string, fields map[string]string) (bool, string, error) {
+	switch checkType {
+	case "env_var":
+		return checkEnvVar(fields)
 	case "file_hash":
-		return checkFileHash(check)
-	case "http":
-		return checkHTTPStatus(check)
-	case "process":
-		return checkProcessRunning(check)
-	case "port":
-		return checkPortOpen(check)
-	case "docker":
-		return checkDockerContainer(check)
+		return checkFileHash(fields)
+	case "file_content":
+		return checkFileContent(fields)
+	case "http_status":
+		return checkHTTPStatus(fields)
+	case "process_running":
+		return checkProcessRunning(fields)
+	case "port_open":
+		return checkPortOpen(fields)
+	case "docker_container":
+		return checkDockerContainer(fields)
 	case "sys_command":
-		return checkSysCommand(check)
-	case "dns":
-		return checkDNSResolve(check)
+		return checkSysCommand(fields)
+	case "dns_resolve":
+		return checkDNSResolve(fields)
+	case "ssl_expiry":
+		return checkSSLExpiry(fields)
 	default:
-		return false, "", fmt.Errorf("unknown check type: %q", check.Type)
+		return false, "", fmt.Errorf("unknown check type: %q", checkType)
 	}
 }

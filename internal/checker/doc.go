@@ -1,15 +1,15 @@
-// Package checker evaluates individual infrastructure checks and reports
-// whether the current state matches the expected (baseline) state.
+// Package checker provides infrastructure check implementations for driftwatch.
 //
 // Supported check types:
 //
-//	file_hash – computes the SHA-256 digest of a file and compares it
-//	            against the expected hash supplied in the check config.
+//   - env_var:    compares an environment variable against an expected value
+//   - file_hash:  computes the SHA-256 hash of a file and compares it to an expected digest
+//   - http_status: performs an HTTP GET and validates the response status code
+//   - process:    verifies that a named process is running via /proc or `pgrep`
+//   - port:       attempts a TCP connection to host:port to confirm it is open
+//   - docker:     inspects a Docker container's status via the Docker socket
+//   - syscmd:     executes an arbitrary shell command and compares trimmed stdout
+//                 to an expected value; useful for ad-hoc or platform-specific checks
 //
-//	env_var   – reads an environment variable and compares its value
-//	            against the expected value supplied in the check config.
-//
-// New returns a Checker that can run all checks defined in the provided
-// config slice. Each call to Run iterates the checks and returns a slice
-// of drift results, one per check that has drifted from its baseline.
+// Each check function accepts a config.Check and returns (drifted bool, message string, err error).
 package checker

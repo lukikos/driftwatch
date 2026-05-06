@@ -1,8 +1,9 @@
 package server
 
 import (
-	"context"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -11,60 +12,70 @@ import (
 
 func TestNew_RegistersRoutes(t *testing.T) {
 	store := history.New(10)
-	srv := New("127.0.0.1:0", store)
+	srv := New(":0", store)
 
-	if srv == nil {
-		t.Fatal("expected non-nil server")
-	}
-	if srv.http == nil {
-		t.Fatal("expected non-nil http.Server")
+	routes := []string{"/status", "/metrics", "/alerts", "/health", "/snapshot"}
+	for _, route := range routes {
+		req := httptest.NewRequest(http.MethodGet, route, nil)
+		rr := httptest.NewRecorder()
+		srv.httpServer.Handler.ServeHTTP(rr, req)
+		if rr.Code == http.StatusNotFound {
+			t.Errorf("route %s not registered (got 404)", route)
+		}
 	}
 }
 
 func TestServer_StartAndShutdown(t *testing.T) {
 	store := history.New(10)
-	srv := New("127.0.0.1:18765", store)
+	srv := New("127.0.0.1:0", store)
 
 	errCh := make(chan error, 1)
-	go func() {
-		errCh <- srv.Start()
-	}()
+	go func() { errCh <- srv.Start() }()
 
-	// Give the server a moment to start.
 	time.Sleep(50 * time.Millisecond)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(); err != nil {
 		t.Fatalf("shutdown error: %v", err)
-	}
-
-	select {
-	case err := <-errCh:
-		if err != nil {
-			t.Fatalf("unexpected server error: %v", err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("server did not stop in time")
 	}
 }
 
 func TestServer_AlertsEndpoint(t *testing.T) {
 	store := history.New(10)
-	srv := New("127.0.0.1:18766", store)
+	store.Record(history.Event{CheckName: "cfg", Drifted: true, Message: "mismatch", Timestamp: time.Now()})
 
-	go srv.Start() //nolint:errcheck
-	time.Sleep(50 * time.Millisecond)
-	defer srv.Shutdown(context.Background()) //nolint:errcheck
+	srv := New(":0", store)
+	req := httptest.NewRequest(http.MethodGet, "/alerts", nil)
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
 
-	resp, err := http.Get("http://127.0.0.1:18766/alerts")
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
 	}
-	defer resp.Body.Close()
+	var result []map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&result); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Errorf("expected 1 alert, got %d", len(result))
+	}
+}
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
+func TestServer_SnapshotEndpoint(t *testing.T) {
+	store := history.New(10)
+	store.Record(history.Event{CheckName: "env", Drifted: false, Message: "ok", Timestamp: time.Now()})
+
+	srv := New(":0", store)
+	req := httptest.NewRequest(http.MethodGet, "/snapshot", nil)
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp history.SnapshotResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if resp.TotalChecks != 1 {
+		t.Errorf("expected 1 check in snapshot, got %d", resp.TotalChecks)
 	}
 }

@@ -1,64 +1,32 @@
-// Package checker evaluates individual drift checks defined in configuration.
+// Package checker evaluates individual drift checks defined in config.
 package checker
 
-import (
-	"fmt"
+import "fmt"
 
-	"github.com/user/driftwatch/internal/config"
-)
+// Checker runs named drift checks.
+type Checker struct{}
 
-// Result holds the outcome of a single drift check.
-type Result struct {
-	CheckName string
-	Drifted   bool
-	Message   string
+// New creates a new Checker.
+func New() *Checker {
+	return &Checker{}
 }
 
-// Checker runs configured checks and returns results.
-type Checker struct {
-	checks []config.Check
-}
-
-// New creates a Checker from the provided check configurations.
-func New(checks []config.Check) *Checker {
-	return &Checker{checks: checks}
-}
-
-// RunAll executes all configured checks and returns their results.
-func (c *Checker) RunAll() []Result {
-	results := make([]Result, 0, len(c.checks))
-	for _, chk := range c.checks {
-		result := c.run(chk)
-		results = append(results, result)
-	}
-	return results
-}
-
-// run dispatches a single check by type.
-func (c *Checker) run(chk config.Check) Result {
-	var (
-		drifted bool
-		msg     string
-		err     error
-	)
-
-	switch chk.Type {
+// Check dispatches a check by type and returns (drifted, message, error).
+func (c *Checker) Check(checkType string, fields map[string]string) (bool, string, error) {
+	switch checkType {
 	case "env_var":
-		drifted, msg, err = checkEnvVar(chk.Fields)
+		return checkEnvVar(fields)
 	case "file_hash":
-		drifted, msg, err = checkFileHash(chk.Fields)
+		return checkFileHash(fields)
 	case "http_status":
-		drifted, msg, err = checkHTTPStatus(chk.Fields)
+		return checkHTTPStatus(fields)
 	case "process_running":
-		drifted, msg, err = checkProcessRunning(chk.Fields)
+		return checkProcessRunning(fields)
 	case "port_open":
-		drifted, msg, err = checkPortOpen(chk.Fields)
+		return checkPortOpen(fields)
+	case "docker_container":
+		return checkDockerContainer(fields)
 	default:
-		err = fmt.Errorf("unknown check type: %s", chk.Type)
+		return false, "", fmt.Errorf("unknown check type: %q", checkType)
 	}
-
-	if err != nil {
-		return Result{CheckName: chk.Name, Drifted: true, Message: err.Error()}
-	}
-	return Result{CheckName: chk.Name, Drifted: drifted, Message: msg}
 }

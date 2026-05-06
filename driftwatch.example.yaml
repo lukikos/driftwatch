@@ -1,37 +1,47 @@
 # driftwatch example configuration
-# Copy to driftwatch.yaml and adjust to your environment.
 
-# How often to run all configured checks.
-check_interval: 60s
-
-webhook:
-  # Required: URL to POST drift alerts to.
-  url: https://hooks.example.com/drift-alerts
-
-  # Optional: additional HTTP headers (e.g. for authentication).
-  headers:
-    Authorization: "Bearer YOUR_TOKEN_HERE"
-    Content-Type: "application/json"
-
-  # Timeout for each webhook HTTP request.
-  timeout: 10s
+webhook_url: "https://hooks.example.com/services/XXX/YYY/ZZZ"
+interval: 60s
+cooldown: 10m
 
 checks:
-  # Monitor a critical config file for unexpected changes.
-  - name: nginx-main-config
-    type: file
-    target: /etc/nginx/nginx.conf
-    params:
-      expected_hash: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  - name: check-api-key-env
+    type: env_var
+    fields:
+      var: API_KEY
+      expected: "supersecret"
 
-  # Ensure a required process is running.
-  - name: sshd-process
-    type: process
-    target: sshd
+  - name: check-hosts-file
+    type: file_hash
+    fields:
+      path: /etc/hosts
+      expected_hash: "abc123def456"
 
-  # Check that an environment variable holds an expected value.
-  - name: app-env-mode
-    type: env
-    target: APP_ENV
-    params:
-      expected_value: production
+  - name: check-app-http
+    type: http_status
+    fields:
+      url: "http://localhost:8080/health"
+      expected: "200"
+
+  - name: check-nginx-process
+    type: process_running
+    fields:
+      process: nginx
+
+  - name: check-postgres-port
+    type: port_open
+    fields:
+      host: localhost
+      port: "5432"
+
+  - name: check-web-container
+    type: docker_container
+    fields:
+      container: my-web-app
+      expected_status: running
+
+  - name: check-worker-container
+    type: docker_container
+    fields:
+      container: my-worker
+      expected_status: running

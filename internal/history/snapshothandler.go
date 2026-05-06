@@ -8,19 +8,19 @@ import (
 
 // SnapshotResponse represents the current state snapshot of all tracked checks.
 type SnapshotResponse struct {
-	GeneratedAt  time.Time        `json:"generated_at"`
-	TotalChecks  int              `json:"total_checks"`
-	DriftCount   int              `json:"drift_count"`
-	HealthyCount int              `json:"healthy_count"`
-	Checks       []CheckSummary   `json:"checks"`
+	GeneratedAt  time.Time      `json:"generated_at"`
+	TotalChecks  int            `json:"total_checks"`
+	DriftCount   int            `json:"drift_count"`
+	HealthyCount int            `json:"healthy_count"`
+	Checks       []CheckSummary `json:"checks"`
 }
 
 // CheckSummary holds the latest status for a single check.
 type CheckSummary struct {
-	Name      string    `json:"name"`
-	Drifted   bool      `json:"drifted"`
-	LastSeen  time.Time `json:"last_seen"`
-	Message   string    `json:"message"`
+	Name     string    `json:"name"`
+	Drifted  bool      `json:"drifted"`
+	LastSeen time.Time `json:"last_seen"`
+	Message  string    `json:"message"`
 }
 
 // SnapshotHandler returns an HTTP handler that provides a current state snapshot
@@ -63,6 +63,8 @@ func SnapshotHandler(store *Store) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		}
 	}
 }

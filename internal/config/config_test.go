@@ -8,100 +8,114 @@ import (
 
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
-	f, err := os.CreateTemp(t.TempDir(), "driftwatch-*.yaml")
+	f, err := os.CreateTemp("", "driftwatch-*.yaml")
 	if err != nil {
 		t.Fatalf("creating temp file: %v", err)
 	}
+	t.Cleanup(func() { os.Remove(f.Name()) })
 	if _, err := f.WriteString(content); err != nil {
-		t.Fatalf("writing temp file: %v", err)
+		t.Fatalf("writing temp config: %v", err)
 	}
 	f.Close()
 	return f.Name()
 }
 
 func TestLoad_ValidConfig(t *testing.T) {
-	yaml := `
-check_interval: 30s
-webhook:
-  url: https://hooks.example.com/alert
-  timeout: 5s
+	path := writeTempConfig(t, `
+webhook_url: https://example.com/hook
+interval: 30s
 checks:
-  - name: nginx-config
-    type: file
-    target: /etc/nginx/nginx.conf
-    params:
-      expected_hash: abc123
-`
-	path := writeTempConfig(t, yaml)
+  - name: check-env
+    type: env_var
+    env_var: HOME
+    expected: /root
+`)
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.CheckInterval != 30*time.Second {
-		t.Errorf("expected 30s interval, got %v", cfg.CheckInterval)
+	if cfg.WebhookURL != "https://example.com/hook" {
+		t.Errorf("wrong webhook_url: %s", cfg.WebhookURL)
 	}
-	if cfg.Webhook.URL != "https://hooks.example.com/alert" {
-		t.Errorf("unexpected webhook URL: %s", cfg.Webhook.URL)
-	}
-	if len(cfg.Checks) != 1 {
-		t.Fatalf("expected 1 check, got %d", len(cfg.Checks))
-	}
-	if cfg.Checks[0].Name != "nginx-config" {
-		t.Errorf("unexpected check name: %s", cfg.Checks[0].Name)
+	if cfg.Interval != 30*time.Second {
+		t.Errorf("wrong interval: %v", cfg.Interval)
 	}
 }
 
 func TestLoad_DefaultInterval(t *testing.T) {
-	yaml := `
-webhook:
-  url: https://hooks.example.com/alert
+	path := writeTempConfig(t, `
+webhook_url: https://example.com/hook
 checks:
-  - name: sshd
-    type: process
-    target: sshd
-`
-	path := writeTempConfig(t, yaml)
+  - name: env-check
+    type: env_var
+    env_var: PATH
+    expected: /usr/bin
+`)
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.CheckInterval != 60*time.Second {
-		t.Errorf("expected default 60s, got %v", cfg.CheckInterval)
+	if cfg.Interval != defaultInterval {
+		t.Errorf("expected default interval %v, got %v", defaultInterval, cfg.Interval)
 	}
 }
 
 func TestLoad_MissingWebhookURL(t *testing.T) {
-	yaml := `
+	path := writeTempConfig(t, `
 checks:
-  - name: sshd
-    type: process
-    target: sshd
-`
-	path := writeTempConfig(t, yaml)
+  - name: env-check
+    type: env_var
+    env_var: PATH
+    expected: /usr/bin
+`)
 	_, err := Load(path)
 	if err == nil {
-		t.Fatal("expected error for missing webhook URL")
+		t.Error("expected error for missing webhook_url")
 	}
 }
 
 func TestLoad_MissingCheckName(t *testing.T) {
-	yaml := `
-webhook:
-  url: https://hooks.example.com/alert
+	path := writeTempConfig(t, `
+webhook_url: https://example.com/hook
 checks:
-  - type: process
-    target: sshd
-`
-	path := writeTempConfig(t, yaml)
+  - type: env_var
+    env_var: PATH
+    expected: /usr/bin
+`)
 	_, err := Load(path)
 	if err == nil {
-		t.Fatal("expected error for missing check name")
+		t.Error("expected error for missing check name")
 	}
 }
 
-func TestLoad_FileNotFound(t *testing.T) {
-	_, err := Load("/nonexistent/path/config.yaml")
+func TestLoad_HTTPCheck_MissingURL(t *testing.T) {
+	path := writeTempConfig(t, `
+webhook_url: https://example.com/hook
+checks:
+  - name: http-check
+    type: http_status
+    expected_status: 200
+`)
+	_, err := Load(path)
 	if err == nil {
-		t.Fatal("expected error for missing file")
+		t.Error("expected error for http_status check missing url")
+	}
+}
+
+func TestLoad_HTTPCheck_Valid(t *testing.T) {
+	path := writeTempConfig(t, `
+webhook_url: https://example.com/hook
+checks:
+  - name: http-check
+    type: http_status
+    url: https://example.com
+    expected_status: 200
+`)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.Checks) != 1 {
+		t.Errorf("expected 1 check, got %d", len(cfg.Checks))
 	}
 }

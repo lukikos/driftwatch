@@ -1,6 +1,8 @@
+// Package config loads and validates driftwatch configuration.
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -8,70 +10,60 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config holds the top-level driftwatch configuration.
+const defaultInterval = 60 * time.Second
+
+// Check represents a single drift check definition.
+type Check struct {
+	Name           string `yaml:"name"`
+	Type           string `yaml:"type"`
+	Path           string `yaml:"path,omitempty"`
+	Expected       string `yaml:"expected,omitempty"`
+	EnvVar         string `yaml:"env_var,omitempty"`
+	URL            string `yaml:"url,omitempty"`
+	ExpectedStatus int    `yaml:"expected_status,omitempty"`
+}
+
+// Config is the top-level configuration structure.
 type Config struct {
-	CheckInterval time.Duration `yaml:"check_interval"`
-	Webhook       WebhookConfig `yaml:"webhook"`
-	Checks        []CheckConfig `yaml:"checks"`
+	WebhookURL string        `yaml:"webhook_url"`
+	Interval   time.Duration `yaml:"interval"`
+	Checks     []Check       `yaml:"checks"`
+	ServerAddr string        `yaml:"server_addr"`
+	Cooldown   time.Duration `yaml:"cooldown"`
 }
 
-// WebhookConfig defines the alert destination.
-type WebhookConfig struct {
-	URL     string            `yaml:"url"`
-	Headers map[string]string `yaml:"headers"`
-	Timeout time.Duration     `yaml:"timeout"`
-}
-
-// CheckConfig describes a single infrastructure check.
-type CheckConfig struct {
-	Name   string            `yaml:"name"`
-	Type   string            `yaml:"type"`
-	Target string            `yaml:"target"`
-	Params map[string]string `yaml:"params"`
-}
-
-// Load reads and parses the YAML config file at the given path.
+// Load reads and validates a YAML config file from the given path.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading config file: %w", err)
+		return nil, fmt.Errorf("reading config: %w", err)
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing config file: %w", err)
+		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 
-	if err := cfg.validate(); err != nil {
-		return nil, fmt.Errorf("invalid config: %w", err)
+	if cfg.Interval == 0 {
+		cfg.Interval = defaultInterval
+	}
+	if cfg.ServerAddr == "" {
+		cfg.ServerAddr = ":8080"
 	}
 
+	if cfg.WebhookURL == "" {
+		return nil, errors.New("webhook_url is required")
+	}
+	for i, chk := range cfg.Checks {
+		if chk.Name == "" {
+			return nil, fmt.Errorf("check[%d]: name is required", i)
+		}
+		if chk.Type == "" {
+			return nil, fmt.Errorf("check %q: type is required", chk.Name)
+		}
+		if chk.Type == "http_status" && chk.URL == "" {
+			return nil, fmt.Errorf("check %q: url is required for http_status type", chk.Name)
+		}
+	}
 	return &cfg, nil
-}
-
-func (c *Config) validate() error {
-	if c.CheckInterval <= 0 {
-		c.CheckInterval = 60 * time.Second
-	}
-	if c.Webhook.URL == "" {
-		return fmt.Errorf("webhook.url is required")
-	}
-	if c.Webhook.Timeout <= 0 {
-		c.Webhook.Timeout = 10 * time.Second
-	}
-	if len(c.Checks) == 0 {
-		return fmt.Errorf("at least one check must be defined")
-	}
-	for i, ch := range c.Checks {
-		if ch.Name == "" {
-			return fmt.Errorf("checks[%d]: name is required", i)
-		}
-		if ch.Type == "" {
-			return fmt.Errorf("checks[%d]: type is required", i)
-		}
-		if ch.Target == "" {
-			return fmt.Errorf("checks[%d]: target is required", i)
-		}
-	}
-	return nil
 }

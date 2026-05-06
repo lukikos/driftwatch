@@ -1,8 +1,11 @@
+// Package checker evaluates individual drift checks defined in configuration.
 package checker
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/yourusername/driftwatch/internal/config"
@@ -10,66 +13,84 @@ import (
 
 // Result holds the outcome of a single check.
 type Result struct {
-	Name    string
-	Drifted bool
-	Expected string
-	Actual   string
-	Err     error
+	CheckName string
+	Drifted   bool
+	Message   string
 }
 
-// Checker evaluates a set of checks against their expected state.
+// Checker runs configured drift checks.
 type Checker struct {
 	checks []config.Check
 }
 
-// New creates a new Checker from the provided check definitions.
+// New creates a Checker from the provided checks slice.
 func New(checks []config.Check) *Checker {
 	return &Checker{checks: checks}
 }
 
-// RunAll executes all checks and returns a slice of Results.
-func (c *Checker) RunAll() []Result {
-	results := make([]Result, 0, len(c.checks))
+// Run executes all checks and returns their results.
+func (c *Checker) Run() ([]Result, error) {
+	var results []Result
 	for _, chk := range c.checks {
-		results = append(results, c.run(chk))
+		r, err := c.runOne(chk)
+		if err != nil {
+			return nil, fmt.Errorf("check %q: %w", chk.Name, err)
+		}
+		results = append(results, r)
 	}
-	return results
+	return results, nil
 }
 
-func (c *Checker) run(chk config.Check) Result {
+func (c *Checker) runOne(chk config.Check) (Result, error) {
 	switch chk.Type {
 	case "file_hash":
-		return checkFileHash(chk)
-	case "env_var":
-		return checkEnvVar(chk)
-	default:
-		return Result{
-			Name: chk.Name,
-			Err:  fmt.Errorf("unknown check type: %s", chk.Type),
+		drifted, msg, err := checkFileHash(chk.Path, chk.Expected)
+		if err != nil {
+			return Result{}, err
 		}
+		return Result{CheckName: chk.Name, Drifted: drifted, Message: msg}, nil
+	case "env_var":
+		drifted, msg, err := checkEnvVar(chk.EnvVar, chk.Expected)
+		if err != nil {
+			return Result{}, err
+		}
+		return Result{CheckName: chk.Name, Drifted: drifted, Message: msg}, nil
+	case "http_status":
+		drifted, msg, err := checkHTTPStatus(chk.URL, chk.ExpectedStatus)
+		if err != nil {
+			return Result{}, err
+		}
+		return Result{CheckName: chk.Name, Drifted: drifted, Message: msg}, nil
+	default:
+		return Result{}, fmt.Errorf("unknown check type: %s", chk.Type)
 	}
 }
 
-func checkFileHash(chk config.Check) Result {
-	data, err := os.ReadFile(chk.Target)
+func checkFileHash(path, expected string) (bool, string, error) {
+	f, err := os.Open(path)
 	if err != nil {
-		return Result{Name: chk.Name, Err: fmt.Errorf("reading file: %w", err)}
+		return false, "", fmt.Errorf("opening file: %w", err)
 	}
-	actual := fmt.Sprintf("%x", sha256.Sum256(data))
-	return Result{
-		Name:     chk.Name,
-		Drifted:  actual != chk.Expected,
-		Expected: chk.Expected,
-		Actual:   actual,
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return false, "", fmt.Errorf("hashing file: %w", err)
 	}
+	actual := hex.EncodeToString(h.Sum(nil))
+	if actual != expected {
+		return true, fmt.Sprintf("expected hash %s, got %s", expected, actual), nil
+	}
+	return false, "", nil
 }
 
-func checkEnvVar(chk config.Check) Result {
-	actual := os.Getenv(chk.Target)
-	return Result{
-		Name:     chk.Name,
-		Drifted:  actual != chk.Expected,
-		Expected: chk.Expected,
-		Actual:   actual,
+func checkEnvVar(name, expected string) (bool, string, error) {
+	if name == "" {
+		return false, "", fmt.Errorf("env_var check requires a non-empty env_var field")
 	}
+	actual := os.Getenv(name)
+	if actual != expected {
+		return true, fmt.Sprintf("expected %q, got %q", expected, actual), nil
+	}
+	return false, "", nil
 }

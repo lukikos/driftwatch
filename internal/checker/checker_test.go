@@ -1,93 +1,73 @@
-package checker_test
+package checker
 
 import (
-	"crypto/sha256"
 	"fmt"
-	"os"
+	"net"
 	"testing"
 
-	"github.com/yourusername/driftwatch/internal/checker"
-	"github.com/yourusername/driftwatch/internal/config"
+	"github.com/user/driftwatch/internal/config"
 )
 
 func TestCheckEnvVar_NoDrift(t *testing.T) {
-	t.Setenv("MY_VAR", "expected-value")
-
-	c := checker.New([]config.Check{
-		{Name: "env-test", Type: "env_var", Target: "MY_VAR", Expected: "expected-value"},
-	})
+	t.Setenv("TEST_VAR", "hello")
+	c := New([]config.Check{{Name: "env", Type: "env_var", Fields: map[string]string{"name": "TEST_VAR", "expected": "hello"}}})
 	results := c.RunAll()
-
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
 	if results[0].Drifted {
-		t.Errorf("expected no drift, but drift was detected")
-	}
-	if results[0].Err != nil {
-		t.Errorf("unexpected error: %v", results[0].Err)
+		t.Errorf("expected no drift")
 	}
 }
 
 func TestCheckEnvVar_Drift(t *testing.T) {
-	t.Setenv("MY_VAR", "actual-value")
-
-	c := checker.New([]config.Check{
-		{Name: "env-test", Type: "env_var", Target: "MY_VAR", Expected: "expected-value"},
-	})
+	t.Setenv("TEST_VAR", "world")
+	c := New([]config.Check{{Name: "env", Type: "env_var", Fields: map[string]string{"name": "TEST_VAR", "expected": "hello"}}})
 	results := c.RunAll()
-
 	if !results[0].Drifted {
-		t.Errorf("expected drift, but none detected")
+		t.Errorf("expected drift")
 	}
 }
 
 func TestCheckFileHash_NoDrift(t *testing.T) {
-	f, err := os.CreateTemp(t.TempDir(), "driftwatch-*.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	content := []byte("stable content")
-	f.Write(content)
-	f.Close()
-
-	expected := fmt.Sprintf("%x", sha256.Sum256(content))
-
-	c := checker.New([]config.Check{
-		{Name: "file-test", Type: "file_hash", Target: f.Name(), Expected: expected},
-	})
+	f := writeTempFile(t, "content")
+	hash := sha256Hex("content")
+	c := New([]config.Check{{Name: "file", Type: "file_hash", Fields: map[string]string{"path": f, "expected": hash}}})
 	results := c.RunAll()
-
 	if results[0].Drifted {
-		t.Errorf("expected no drift, but drift was detected")
+		t.Errorf("expected no drift")
 	}
 }
 
 func TestCheckFileHash_Drift(t *testing.T) {
-	f, err := os.CreateTemp(t.TempDir(), "driftwatch-*.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.Write([]byte("changed content"))
-	f.Close()
-
-	c := checker.New([]config.Check{
-		{Name: "file-test", Type: "file_hash", Target: f.Name(), Expected: "deadbeef"},
-	})
+	f := writeTempFile(t, "changed")
+	c := New([]config.Check{{Name: "file", Type: "file_hash", Fields: map[string]string{"path": f, "expected": "deadbeef"}}})
 	results := c.RunAll()
-
 	if !results[0].Drifted {
-		t.Errorf("expected drift, but none detected")
+		t.Errorf("expected drift")
 	}
 }
 
 func TestUnknownCheckType(t *testing.T) {
-	c := checker.New([]config.Check{
-		{Name: "unknown", Type: "unsupported", Target: "x", Expected: "y"},
-	})
+	c := New([]config.Check{{Name: "bad", Type: "nonexistent", Fields: map[string]string{}}})
 	results := c.RunAll()
+	if !results[0].Drifted {
+		t.Errorf("expected drift for unknown type")
+	}
+}
 
-	if results[0].Err == nil {
-		t.Errorf("expected error for unknown check type, got nil")
+func TestCheckPortOpen_ViaChecker_NoDrift(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen: %v", err)
+	}
+	defer ln.Close()
+	port := fmt.Sprintf("%d", ln.Addr().(*net.TCPAddr).Port)
+
+	c := New([]config.Check{{
+		Name:   "port",
+		Type:   "port_open",
+		Fields: map[string]string{"host": "127.0.0.1", "port": port},
+	}})
+	results := c.RunAll()
+	if results[0].Drifted {
+		t.Errorf("expected no drift for open port, got: %s", results[0].Message)
 	}
 }

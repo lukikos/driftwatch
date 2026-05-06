@@ -10,6 +10,16 @@ import (
 	"github.com/yourusername/driftwatch/internal/history"
 )
 
+// decodeHealthResponse is a helper that decodes the response body into a HealthResponse.
+func decodeHealthResponse(t *testing.T, rec *httptest.ResponseRecorder) history.HealthResponse {
+	t.Helper()
+	var resp history.HealthResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	return resp
+}
+
 func TestHealthHandler_EmptyStore(t *testing.T) {
 	store := history.New(10)
 	startedAt := time.Now().Add(-5 * time.Minute)
@@ -23,10 +33,7 @@ func TestHealthHandler_EmptyStore(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	var resp history.HealthResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
+	resp := decodeHealthResponse(t, rec)
 
 	if resp.Status != "ok" {
 		t.Errorf("expected status ok, got %q", resp.Status)
@@ -59,10 +66,7 @@ func TestHealthHandler_WithDriftEvents(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	var resp history.HealthResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
+	resp := decodeHealthResponse(t, rec)
 
 	if resp.Checks != 3 {
 		t.Errorf("expected 3 checks, got %d", resp.Checks)

@@ -1,51 +1,47 @@
-// Package server wires up the HTTP API for driftwatch.
 package server
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"time"
 
-	"github.com/driftwatch/driftwatch/internal/history"
+	"github.com/yourusername/driftwatch/internal/history"
 )
 
-// Server holds the HTTP server and its dependencies.
+const shutdownTimeout = 5 * time.Second
+
+// Server wraps an HTTP server and its registered routes.
 type Server struct {
-	http *http.Server
+	httpServer *http.Server
+	mux        *http.ServeMux
 }
 
-// New creates a new Server bound to addr, registering all API routes
-// against the provided history Store.
-func New(addr string, store *history.Store) *Server {
+// New creates a Server with all API routes registered.
+func New(addr string, store *history.Store, startedAt time.Time) *Server {
 	mux := http.NewServeMux()
 
-	mux.Handle("/status", history.StatusHandler(store))
-	mux.Handle("/metrics", history.MetricsHandler(store))
-	mux.Handle("/alerts", history.AlertHandler(store))
+	mux.HandleFunc("/status", history.StatusHandler(store))
+	mux.HandleFunc("/metrics", history.MetricsHandler(store))
+	mux.HandleFunc("/alerts", history.AlertHandler(store))
+	mux.HandleFunc("/health", history.HealthHandler(store, startedAt))
 
-	httpServer := &http.Server{
-		Addr:         addr,
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
+	return &Server{
+		httpServer: &http.Server{
+			Addr:    addr,
+			Handler: mux,
+		},
+		mux: mux,
 	}
-
-	return &Server{http: httpServer}
 }
 
-// Start begins listening and serving HTTP requests. It blocks until the
-// server is shut down or encounters a fatal error.
+// Start begins listening and serving HTTP requests.
 func (s *Server) Start() error {
-	log.Printf("driftwatch API listening on %s", s.http.Addr)
-	if err := s.http.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return err
-	}
-	return nil
+	return s.httpServer.ListenAndServe()
 }
 
-// Shutdown gracefully stops the server using the provided context.
-func (s *Server) Shutdown(ctx context.Context) error {
-	return s.http.Shutdown(ctx)
+// Shutdown gracefully stops the server.
+func (s *Server) Shutdown() error {
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	return s.httpServer.Shutdown(ctx)
 }

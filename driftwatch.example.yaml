@@ -1,72 +1,117 @@
 # driftwatch example configuration
+# Copy to driftwatch.yaml and adjust to your environment.
 
 webhook_url: "https://hooks.example.com/services/XXX/YYY/ZZZ"
 interval: 60s
 cooldown: 5m
+max_history: 200
+
+server:
+  addr: ":8080"
 
 checks:
-  - name: check-app-env
+  # --- Environment variable check ---
+  - name: check-go-env
     type: env_var
     fields:
-      name: APP_ENV
+      var: GO_ENV
       expected: production
 
-  - name: check-hosts-hash
+  # --- File hash check ---
+  - name: nginx-config-hash
     type: file_hash
     fields:
+      path: /etc/nginx/nginx.conf
+      expected: abc123def456
+
+  # --- File content check ---
+  - name: hosts-contains-localhost
+    type: file_content
+    fields:
       path: /etc/hosts
-      expected: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      contains: "127.0.0.1"
 
-  - name: check-sshd-config-banner
-    type: file_content
+  # --- File exists check ---
+  - name: lock-file-absent
+    type: file_exists
     fields:
-      path: /etc/ssh/sshd_config
-      contains: "PermitRootLogin no"
+      path: /var/run/myapp.lock
+      should_exist: "false"
 
-  - name: check-sshd-config-port
-    type: file_content
-    fields:
-      path: /etc/ssh/sshd_config
-      matches: "^Port \\d+"
-
-  - name: check-api-health
+  # --- HTTP status check ---
+  - name: api-health
     type: http_status
     fields:
-      url: "http://localhost:8080/health"
+      url: https://api.example.com/health
       expected: "200"
 
-  - name: check-nginx-running
-    type: process_running
-    fields:
-      process: nginx
-
-  - name: check-postgres-port
+  # --- Port open check ---
+  - name: postgres-port
     type: port_open
     fields:
       host: localhost
       port: "5432"
 
-  - name: check-redis-container
+  # --- Process running check ---
+  - name: nginx-running
+    type: process_running
+    fields:
+      process: nginx
+
+  # --- Docker container check ---
+  - name: redis-container
     type: docker_container
     fields:
       container: redis
-      expected_status: running
+      expected: running
 
-  - name: check-kernel-version
-    type: sys_command
-    fields:
-      command: uname
-      args: "-r"
-      expected: "5.15"
-
-  - name: check-dns-resolve
+  # --- DNS resolve check ---
+  - name: api-dns
     type: dns_resolve
     fields:
-      host: example.com
+      host: api.example.com
       expected: "93.184.216.34"
 
-  - name: check-ssl-expiry
+  # --- SSL expiry check ---
+  - name: api-ssl-expiry
     type: ssl_expiry
     fields:
-      host: example.com:443
+      host: api.example.com:443
       min_days: "30"
+
+  # --- System command check ---
+  - name: kernel-version
+    type: sys_command
+    fields:
+      command: uname -r
+      expected: "5.15"
+
+  # --- Directory size check ---
+  - name: log-dir-size
+    type: dir_size
+    fields:
+      path: /var/log/myapp
+      max_bytes: "104857600"  # 100 MiB
+
+  # --- Cron last run check ---
+  - name: backup-cron
+    type: last_cron_run
+    fields:
+      job_name: backup.sh
+      max_age: 25h
+
+  # --- Env file check ---
+  - name: dotenv-db-url
+    type: env_file
+    fields:
+      path: /etc/myapp/.env
+      key: DATABASE_URL
+      expected: "postgres://user:pass@localhost/mydb"
+
+  # --- Kubernetes pod check ---
+  - name: api-pod-running
+    type: k8s_pod
+    fields:
+      pod_prefix: api-server
+      namespace: production
+      expected: Running

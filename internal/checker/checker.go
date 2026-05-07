@@ -1,4 +1,3 @@
-// Package checker evaluates individual drift checks defined in config.
 package checker
 
 import (
@@ -7,49 +6,49 @@ import (
 	"github.com/driftwatch/driftwatch/internal/config"
 )
 
-// Checker runs drift checks against a config.Check definition.
+// Checker dispatches config.Check entries to the appropriate check function.
 type Checker struct{}
 
-// New creates a new Checker.
+// New returns a new Checker.
 func New() *Checker {
 	return &Checker{}
 }
 
-// Run executes the check described by c and returns:
-//   - drifted: true if the actual state differs from expected
-//   - message: human-readable description of the drift (empty when no drift)
-//   - err: non-nil if the check could not be performed
-func (ch *Checker) Run(c config.Check) (bool, string, error) {
-	switch c.Type {
+// Check runs the appropriate check for the given config.Check.
+// It returns (drifted bool, detail string, err error).
+func (c *Checker) Check(check config.Check) (bool, string, error) {
+	switch check.Type {
 	case "env_var":
-		return checkEnvVar(c)
+		return checkEnvVar(check)
 	case "file_hash":
-		return checkFileHash(c)
-	case "http_status":
-		return checkHTTPStatus(c)
-	case "process":
-		return checkProcessRunning(c)
-	case "port":
-		return checkPortOpen(c)
-	case "docker":
-		return checkDockerContainer(c)
-	case "sys_command":
-		return checkSysCommand(c)
-	case "dns":
-		return checkDNSResolve(c)
-	case "ssl_expiry":
-		return checkSSLExpiry(c)
+		return checkFileHash(check)
 	case "file_content":
-		return checkFileContent(c)
+		return checkFileContent(check)
 	case "file_exists":
-		return checkFileExists(c)
+		return checkFileExists(check)
+	case "http_status":
+		return checkHTTPStatus(check)
+	case "port_open":
+		return checkPortOpen(check)
+	case "process_running":
+		return checkProcessRunning(check)
+	case "docker_container":
+		return checkDockerContainer(check)
+	case "dns_resolve":
+		return checkDNSResolve(check)
+	case "ssl_expiry":
+		return checkSSLExpiry(check)
+	case "sys_command":
+		return checkSysCommand(check)
 	case "dir_size":
-		return checkDirSize(c)
+		return checkDirSize(check)
 	case "last_cron_run":
-		return checkLastCronRun(c)
-	case "envfile":
-		return checkEnvFile(c)
+		return checkLastCronRun(check)
+	case "env_file":
+		return checkEnvFile(check)
+	case "k8s_pod":
+		return checkK8sPod(check)
 	default:
-		return false, "", fmt.Errorf("unknown check type: %q", c.Type)
+		return false, "", fmt.Errorf("unknown check type: %q", check.Type)
 	}
 }

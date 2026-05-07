@@ -1,65 +1,52 @@
-// Package checker evaluates individual drift checks defined in config.
+// Package checker evaluates individual drift checks defined in configuration.
 package checker
 
 import (
 	"fmt"
+
+	"github.com/driftwatch/driftwatch/internal/config"
 )
 
-// Result holds the outcome of a single drift check.
-type Result struct {
-	Drifted bool
-	Message string
-}
-
-// Checker dispatches named check types to their implementations.
+// Checker evaluates config.Check entries and reports whether drift is detected.
 type Checker struct{}
 
-// New returns a new Checker.
+// New returns a new Checker instance.
 func New() *Checker {
 	return &Checker{}
 }
 
-// Check runs the named check type with the given fields.
-// It returns a Result and any execution error.
-func (c *Checker) Check(checkType string, fields map[string]string) (Result, error) {
-	var (
-		drifted bool
-		msg     string
-		err     error
-	)
-
-	switch checkType {
+// Check runs the appropriate check function based on check.Type.
+// It returns (drift bool, message string, err error).
+// drift=true means the system has drifted from the expected state.
+func (c *Checker) Check(check config.Check) (bool, string, error) {
+	switch check.Type {
 	case "env_var":
-		drifted, msg, err = checkEnvVar(fields)
+		return checkEnvVar(check)
 	case "file_hash":
-		drifted, msg, err = checkFileHash(fields)
+		return checkFileHash(check)
 	case "http_status":
-		drifted, msg, err = checkHTTPStatus(fields)
+		return checkHTTPStatus(check)
 	case "process_running":
-		drifted, msg, err = checkProcessRunning(fields)
+		return checkProcessRunning(check)
 	case "port_open":
-		drifted, msg, err = checkPortOpen(fields)
+		return checkPortOpen(check)
 	case "docker_container":
-		drifted, msg, err = checkDockerContainer(fields)
+		return checkDockerContainer(check)
 	case "sys_command":
-		drifted, msg, err = checkSysCommand(fields)
+		return checkSysCommand(check)
 	case "dns_resolve":
-		drifted, msg, err = checkDNSResolve(fields)
+		return checkDNSResolve(check)
 	case "ssl_expiry":
-		drifted, msg, err = checkSSLExpiry(fields)
+		return checkSSLExpiry(check)
 	case "file_content":
-		drifted, msg, err = checkFileContent(fields)
+		return checkFileContent(check)
 	case "file_exists":
-		drifted, msg, err = checkFileExists(fields)
-	case "dirsize":
-		drifted, msg, err = checkDirSize(fields)
+		return checkFileExists(check)
+	case "dir_size":
+		return checkDirSize(check)
+	case "cron_check":
+		return checkLastCronRun(check)
 	default:
-		return Result{}, fmt.Errorf("unknown check type: %q", checkType)
+		return false, "", fmt.Errorf("unknown check type: %q", check.Type)
 	}
-
-	if err != nil {
-		return Result{}, err
-	}
-
-	return Result{Drifted: drifted, Message: msg}, nil
 }

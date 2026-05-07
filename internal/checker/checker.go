@@ -1,7 +1,15 @@
-// Package checker evaluates individual drift checks.
+// Package checker evaluates individual drift checks defined in config.
 package checker
 
-import "fmt"
+import (
+	"fmt"
+)
+
+// Result holds the outcome of a single drift check.
+type Result struct {
+	Drifted bool
+	Message string
+}
 
 // Checker dispatches named check types to their implementations.
 type Checker struct{}
@@ -11,31 +19,47 @@ func New() *Checker {
 	return &Checker{}
 }
 
-// Check runs the named check type with the provided fields.
-// Returns (drifted, message, error).
-func (c *Checker) Check(checkType string, fields map[string]string) (bool, string, error) {
+// Check runs the named check type with the given fields.
+// It returns a Result and any execution error.
+func (c *Checker) Check(checkType string, fields map[string]string) (Result, error) {
+	var (
+		drifted bool
+		msg     string
+		err     error
+	)
+
 	switch checkType {
 	case "env_var":
-		return checkEnvVar(fields)
+		drifted, msg, err = checkEnvVar(fields)
 	case "file_hash":
-		return checkFileHash(fields)
-	case "file_content":
-		return checkFileContent(fields)
+		drifted, msg, err = checkFileHash(fields)
 	case "http_status":
-		return checkHTTPStatus(fields)
+		drifted, msg, err = checkHTTPStatus(fields)
 	case "process_running":
-		return checkProcessRunning(fields)
+		drifted, msg, err = checkProcessRunning(fields)
 	case "port_open":
-		return checkPortOpen(fields)
+		drifted, msg, err = checkPortOpen(fields)
 	case "docker_container":
-		return checkDockerContainer(fields)
+		drifted, msg, err = checkDockerContainer(fields)
 	case "sys_command":
-		return checkSysCommand(fields)
+		drifted, msg, err = checkSysCommand(fields)
 	case "dns_resolve":
-		return checkDNSResolve(fields)
+		drifted, msg, err = checkDNSResolve(fields)
 	case "ssl_expiry":
-		return checkSSLExpiry(fields)
+		drifted, msg, err = checkSSLExpiry(fields)
+	case "file_content":
+		drifted, msg, err = checkFileContent(fields)
+	case "file_exists":
+		drifted, msg, err = checkFileExists(fields)
+	case "dirsize":
+		drifted, msg, err = checkDirSize(fields)
 	default:
-		return false, "", fmt.Errorf("unknown check type: %q", checkType)
+		return Result{}, fmt.Errorf("unknown check type: %q", checkType)
 	}
+
+	if err != nil {
+		return Result{}, err
+	}
+
+	return Result{Drifted: drifted, Message: msg}, nil
 }

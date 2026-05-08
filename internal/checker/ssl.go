@@ -25,6 +25,9 @@ func checkSSLExpiry(check config.Check) (bool, string, error) {
 		if err != nil {
 			return false, "", fmt.Errorf("ssl_expiry check %q: invalid 'days' value: %s", check.Name, daysStr)
 		}
+		if thresholdDays < 0 {
+			return false, "", fmt.Errorf("ssl_expiry check %q: 'days' must be non-negative, got %d", check.Name, thresholdDays)
+		}
 	}
 
 	conn, err := tls.DialWithDialer(

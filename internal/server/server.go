@@ -26,8 +26,11 @@ func New(addr string, store *history.Store) *Server {
 
 	return &Server{
 		httpServer: &http.Server{
-			Addr:    addr,
-			Handler: mux,
+			Addr:         addr,
+			Handler:      mux,
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 30 * time.Second,
+			IdleTimeout:  60 * time.Second,
 		},
 	}
 }

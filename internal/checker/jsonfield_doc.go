@@ -12,6 +12,19 @@
 //	- field    (required): Dot-separated path to the target field (e.g. "status" or "db.connected").
 //	- expected (required): The expected string representation of the field value.
 //
+// ## Field path syntax
+//
+// The field path uses dot notation to traverse nested JSON objects.
+// For example, given the response:
+//
+//	{
+//	  "db": { "connected": true },
+//	  "status": "ok"
+//	}
+//
+// Use "db.connected" to access the nested boolean, or "status" for a top-level key.
+// Array indexing is not currently supported.
+//
 // ## Example
 //
 //	checks:

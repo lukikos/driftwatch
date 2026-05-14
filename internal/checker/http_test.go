@@ -68,3 +68,34 @@ func TestCheckHTTPStatus_InvalidURL(t *testing.T) {
 		t.Error("expected error for unreachable URL")
 	}
 }
+
+func TestCheckHTTPStatus_VariousStatusCodes(t *testing.T) {
+	tests := []struct {
+		name           string
+		servedStatus   int
+		expectedStatus int
+		wantDrift      bool
+	}{
+		{"301 matches expected", http.StatusMovedPermanently, http.StatusMovedPermanently, false},
+		{"404 matches expected", http.StatusNotFound, http.StatusNotFound, false},
+		{"500 when 200 expected", http.StatusInternalServerError, http.StatusOK, true},
+		{"404 when 200 expected", http.StatusNotFound, http.StatusOK, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.servedStatus)
+			}))
+			defer ts.Close()
+
+			drifted, _, err := checkHTTPStatus(ts.URL, tc.expectedStatus)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if drifted != tc.wantDrift {
+				t.Errorf("drift=%v, want %v", drifted, tc.wantDrift)
+			}
+		})
+	}
+}

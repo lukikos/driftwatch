@@ -1,117 +1,271 @@
 # driftwatch example configuration
-# Copy to driftwatch.yaml and adjust to your environment.
+# Copy this file to driftwatch.yaml and adjust to your environment.
 
-webhook_url: "https://hooks.example.com/services/XXX/YYY/ZZZ"
+webhook_url: "https://hooks.example.com/drift-alerts"
 interval: 60s
 cooldown: 5m
-max_history: 200
 
+# Optional HTTP server for status/metrics endpoints
 server:
   addr: ":8080"
 
 checks:
-  # --- Environment variable check ---
-  - name: check-go-env
+  # --- Environment variable ---
+  - name: check-env-var
     type: env_var
     fields:
-      var: GO_ENV
+      var: MY_APP_ENV
       expected: production
 
-  # --- File hash check ---
-  - name: nginx-config-hash
+  # --- File hash ---
+  - name: check-file-hash
     type: file_hash
     fields:
-      path: /etc/nginx/nginx.conf
-      expected: abc123def456
+      path: /etc/myapp/config.json
+      expected: "abc123def456"
 
-  # --- File content check ---
-  - name: hosts-contains-localhost
-    type: file_content
-    fields:
-      path: /etc/hosts
-      contains: "127.0.0.1"
-
-  # --- File exists check ---
-  - name: lock-file-absent
-    type: file_exists
-    fields:
-      path: /var/run/myapp.lock
-      should_exist: "false"
-
-  # --- HTTP status check ---
-  - name: api-health
+  # --- HTTP status ---
+  - name: check-api-health
     type: http_status
     fields:
       url: https://api.example.com/health
       expected: "200"
 
-  # --- Port open check ---
-  - name: postgres-port
+  # --- HTTP latency ---
+  - name: check-api-latency
+    type: http_latency
+    fields:
+      url: https://api.example.com/health
+      max_ms: "500"
+
+  # --- Port open ---
+  - name: check-postgres-port
     type: port_open
     fields:
-      host: localhost
+      host: db.example.com
       port: "5432"
 
-  # --- Process running check ---
-  - name: nginx-running
+  # --- Process running ---
+  - name: check-nginx-process
     type: process_running
     fields:
       process: nginx
 
-  # --- Docker container check ---
-  - name: redis-container
+  # --- Docker container ---
+  - name: check-docker-container
     type: docker_container
     fields:
-      container: redis
+      container: my-app
       expected: running
 
-  # --- DNS resolve check ---
-  - name: api-dns
+  # --- Systemd service ---
+  - name: check-systemd-service
+    type: service_status
+    fields:
+      service: nginx
+      expected: active
+
+  # --- DNS resolve ---
+  - name: check-dns
     type: dns_resolve
     fields:
       host: api.example.com
       expected: "93.184.216.34"
 
-  # --- SSL expiry check ---
-  - name: api-ssl-expiry
+  # --- SSL expiry ---
+  - name: check-ssl-expiry
     type: ssl_expiry
     fields:
       host: api.example.com:443
-      min_days: "30"
+      days: "14"
 
-  # --- System command check ---
-  - name: kernel-version
-    type: sys_command
+  # --- Certificate pin ---
+  - name: check-cert-pin
+    type: cert_pin
     fields:
-      command: uname -r
-      expected: "5.15"
+      host: api.example.com:443
+      fingerprint: "AA:BB:CC:DD:EE:FF"
 
-  # --- Directory size check ---
-  - name: log-dir-size
+  # --- File content ---
+  - name: check-file-contains
+    type: file_content
+    fields:
+      path: /etc/myapp/config.json
+      contains: "production"
+
+  # --- File exists ---
+  - name: check-file-exists
+    type: file_exists
+    fields:
+      path: /etc/myapp/config.json
+      expected: "true"
+
+  # --- Symlink ---
+  - name: check-symlink
+    type: symlink
+    fields:
+      path: /etc/myapp/current
+      target: /etc/myapp/v2
+
+  # --- Directory size ---
+  - name: check-dir-size
     type: dir_size
     fields:
       path: /var/log/myapp
-      max_bytes: "104857600"  # 100 MiB
+      max_bytes: "104857600"
 
-  # --- Cron last run check ---
-  - name: backup-cron
+  # --- Disk usage ---
+  - name: check-disk-usage
+    type: disk_usage
+    fields:
+      path: /
+      max_percent: "85"
+
+  # --- Mount point ---
+  - name: check-mount
+    type: mount_point
+    fields:
+      path: /mnt/data
+      expected: mounted
+
+  # --- Cron last run ---
+  - name: check-cron-backup
     type: last_cron_run
     fields:
       job_name: backup.sh
       max_age: 25h
 
-  # --- Env file check ---
-  - name: dotenv-db-url
+  # --- Env file ---
+  - name: check-env-file
     type: env_file
     fields:
       path: /etc/myapp/.env
-      key: DATABASE_URL
-      expected: "postgres://user:pass@localhost/mydb"
+      key: APP_ENV
+      expected: production
 
-  # --- Kubernetes pod check ---
-  - name: api-pod-running
+  # --- System command ---
+  - name: check-syscmd
+    type: sys_command
+    fields:
+      command: "uname -s"
+      expected: Linux
+
+  # --- JSON field ---
+  - name: check-json-field
+    type: json_field
+    fields:
+      url: https://api.example.com/config
+      field: "settings.mode"
+      expected: production
+
+  # --- Kubernetes pod ---
+  - name: check-k8s-pod
     type: k8s_pod
     fields:
-      pod_prefix: api-server
-      namespace: production
+      pod_prefix: myapp-
+      namespace: default
       expected: Running
+
+  # --- AWS S3 bucket access ---
+  - name: check-s3-bucket
+    type: s3_bucket_access
+    fields:
+      url: https://my-bucket.s3.amazonaws.com/healthcheck
+      expected: "200"
+
+  # --- AWS EC2 instance metadata ---
+  - name: check-ec2-metadata
+    type: ec2_instance_metadata
+    fields:
+      key: instance-type
+      expected: t3.medium
+
+  # --- AWS Lambda function ---
+  - name: check-lambda
+    type: lambda_function
+    fields:
+      endpoint: https://lambda.us-east-1.amazonaws.com
+      function_name: my-function
+      expected: Active
+
+  # --- AWS RDS instance ---
+  - name: check-rds
+    type: rds_instance_status
+    fields:
+      endpoint: https://rds.us-east-1.amazonaws.com
+      db_identifier: my-db
+      expected: available
+
+  # --- AWS SQS queue attributes ---
+  - name: check-sqs
+    type: sqs_queue_attributes
+    fields:
+      endpoint: https://sqs.us-east-1.amazonaws.com
+      queue_url: https://sqs.us-east-1.amazonaws.com/123456789/my-queue
+      attribute: ApproximateNumberOfMessages
+      expected: "0"
+
+  # --- AWS IAM role policy ---
+  - name: check-iam-role
+    type: iam_role_policy
+    fields:
+      role_name: my-role
+      expected_policy: ReadOnlyAccess
+
+  # --- AWS Security Group rules ---
+  - name: check-security-group
+    type: security_group_rules
+    fields:
+      endpoint: https://ec2.us-east-1.amazonaws.com
+      group_id: sg-0123456789abcdef0
+      expected: "443"
+
+  # --- AWS DynamoDB table ---
+  - name: check-dynamodb
+    type: dynamodb_table
+    fields:
+      endpoint: https://dynamodb.us-east-1.amazonaws.com
+      table_name: my-table
+      expected: ACTIVE
+
+  # --- AWS ECS service ---
+  - name: check-ecs-service
+    type: ecs_service_status
+    fields:
+      endpoint: https://ecs.us-east-1.amazonaws.com
+      cluster: my-cluster
+      service_name: my-service
+      expected: ACTIVE
+
+  # --- AWS SNS topic attributes ---
+  - name: check-sns-topic
+    type: sns_topic_attributes
+    fields:
+      endpoint: https://sns.us-east-1.amazonaws.com
+      topic_arn: arn:aws:sns:us-east-1:123456789:my-topic
+      attribute: SubscriptionsConfirmed
+      expected: "1"
+
+  # --- AWS CloudWatch alarm ---
+  - name: check-cloudwatch-alarm
+    type: cloudwatch_alarm
+    fields:
+      endpoint: https://monitoring.us-east-1.amazonaws.com
+      alarm_name: high-cpu-alarm
+      expected: OK
+
+  # --- AWS Route53 health check ---
+  - name: check-route53
+    type: route53_health_check
+    fields:
+      endpoint: https://route53.amazonaws.com
+      health_check_id: abcd1234-ef56-7890-abcd-ef1234567890
+      expected: Healthy
+
+  # --- AWS EKS cluster status ---
+  - name: check-eks-cluster
+    type: eks_cluster_status
+    fields:
+      endpoint: https://eks.us-east-1.amazonaws.com
+      cluster_name: prod-cluster
+      expected: ACTIVE

@@ -96,6 +96,20 @@ func TestCheckSecurityGroupRules_Drift(t *testing.T) {
 	}
 }
 
+func TestCheckSecurityGroupRules_GroupNotFound(t *testing.T) {
+	srv := sgServer(t, "sg-abc", "10.0.0.0/8")
+	defer srv.Close()
+
+	_, _, err := checkSecurityGroupRules(map[string]string{
+		"endpoint": srv.URL,
+		"group_id": "sg-nonexistent",
+		"expected": "10.0.0.0/8",
+	})
+	if err == nil {
+		t.Fatal("expected error for unknown group_id")
+	}
+}
+
 func TestCheckSecurityGroupRules_ViaChecker(t *testing.T) {
 	srv := sgServer(t, "sg-xyz", "192.168.1.0/24")
 	defer srv.Close()

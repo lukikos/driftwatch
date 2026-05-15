@@ -1,271 +1,300 @@
-# driftwatch example configuration
-# Copy this file to driftwatch.yaml and adjust to your environment.
+# driftwatch.example.yaml — example configuration for driftwatch
+# Copy to driftwatch.yaml and customise as needed.
 
-webhook_url: "https://hooks.example.com/drift-alerts"
+webhook_url: "https://hooks.example.com/services/XXX/YYY/ZZZ"
 interval: 60s
 cooldown: 5m
 
-# Optional HTTP server for status/metrics endpoints
-server:
-  addr: ":8080"
-
 checks:
-  # --- Environment variable ---
-  - name: check-env-var
+  # ── Environment variable ─────────────────────────────────────────────────
+  - name: app-env-check
     type: env_var
-    fields:
-      var: MY_APP_ENV
+    params:
+      var: APP_ENV
       expected: production
 
-  # --- File hash ---
-  - name: check-file-hash
+  # ── File hash ────────────────────────────────────────────────────────────
+  - name: nginx-config-hash
     type: file_hash
-    fields:
-      path: /etc/myapp/config.json
-      expected: "abc123def456"
+    params:
+      path: /etc/nginx/nginx.conf
+      expected: sha256:abc123
 
-  # --- HTTP status ---
-  - name: check-api-health
+  # ── File content ─────────────────────────────────────────────────────────
+  - name: hosts-contains-localhost
+    type: file_content
+    params:
+      path: /etc/hosts
+      contains: "127.0.0.1"
+
+  # ── File exists ──────────────────────────────────────────────────────────
+  - name: pid-file-present
+    type: file_exists
+    params:
+      path: /var/run/myapp.pid
+      expected: true
+
+  # ── Directory size ───────────────────────────────────────────────────────
+  - name: log-dir-size
+    type: dir_size
+    params:
+      path: /var/log/myapp
+      max_bytes: 1073741824  # 1 GiB
+
+  # ── Disk usage ───────────────────────────────────────────────────────────
+  - name: root-disk-usage
+    type: disk_usage
+    params:
+      path: /
+      max_percent: 85
+
+  # ── HTTP status ──────────────────────────────────────────────────────────
+  - name: api-health
     type: http_status
-    fields:
+    params:
       url: https://api.example.com/health
-      expected: "200"
+      expected: 200
 
-  # --- HTTP latency ---
-  - name: check-api-latency
+  # ── HTTP latency ─────────────────────────────────────────────────────────
+  - name: api-latency
     type: http_latency
-    fields:
+    params:
       url: https://api.example.com/health
-      max_ms: "500"
+      max_ms: 500
 
-  # --- Port open ---
-  - name: check-postgres-port
-    type: port_open
-    fields:
-      host: db.example.com
-      port: "5432"
-
-  # --- Process running ---
-  - name: check-nginx-process
+  # ── Process running ──────────────────────────────────────────────────────
+  - name: nginx-process
     type: process_running
-    fields:
+    params:
       process: nginx
 
-  # --- Docker container ---
-  - name: check-docker-container
-    type: docker_container
-    fields:
-      container: my-app
-      expected: running
+  # ── Port open ────────────────────────────────────────────────────────────
+  - name: postgres-port
+    type: port_open
+    params:
+      host: localhost
+      port: 5432
 
-  # --- Systemd service ---
-  - name: check-systemd-service
-    type: service_status
-    fields:
-      service: nginx
-      expected: active
-
-  # --- DNS resolve ---
-  - name: check-dns
+  # ── DNS resolve ──────────────────────────────────────────────────────────
+  - name: api-dns
     type: dns_resolve
-    fields:
+    params:
       host: api.example.com
-      expected: "93.184.216.34"
+      expected: 93.184.216.34
 
-  # --- SSL expiry ---
-  - name: check-ssl-expiry
+  # ── SSL expiry ───────────────────────────────────────────────────────────
+  - name: api-ssl-expiry
     type: ssl_expiry
-    fields:
+    params:
       host: api.example.com:443
-      days: "14"
+      min_days: 14
 
-  # --- Certificate pin ---
-  - name: check-cert-pin
+  # ── Certificate pin ──────────────────────────────────────────────────────
+  - name: api-cert-pin
     type: cert_pin
-    fields:
+    params:
       host: api.example.com:443
       fingerprint: "AA:BB:CC:DD:EE:FF"
 
-  # --- File content ---
-  - name: check-file-contains
-    type: file_content
-    fields:
-      path: /etc/myapp/config.json
-      contains: "production"
-
-  # --- File exists ---
-  - name: check-file-exists
-    type: file_exists
-    fields:
-      path: /etc/myapp/config.json
-      expected: "true"
-
-  # --- Symlink ---
-  - name: check-symlink
+  # ── Symlink ──────────────────────────────────────────────────────────────
+  - name: current-release-symlink
     type: symlink
-    fields:
-      path: /etc/myapp/current
-      target: /etc/myapp/v2
+    params:
+      path: /opt/myapp/current
+      target: /opt/myapp/releases/42
 
-  # --- Directory size ---
-  - name: check-dir-size
-    type: dir_size
-    fields:
-      path: /var/log/myapp
-      max_bytes: "104857600"
-
-  # --- Disk usage ---
-  - name: check-disk-usage
-    type: disk_usage
-    fields:
-      path: /
-      max_percent: "85"
-
-  # --- Mount point ---
-  - name: check-mount
+  # ── Mount point ──────────────────────────────────────────────────────────
+  - name: data-volume-mounted
     type: mount_point
-    fields:
+    params:
       path: /mnt/data
       expected: mounted
 
-  # --- Cron last run ---
-  - name: check-cron-backup
+  # ── System command ───────────────────────────────────────────────────────
+  - name: kernel-version
+    type: sys_command
+    params:
+      command: uname -r
+      expected: "5.15.0-91-generic"
+
+  # ── Cron last run ────────────────────────────────────────────────────────
+  - name: backup-cron
     type: last_cron_run
-    fields:
+    params:
       job_name: backup.sh
       max_age: 25h
 
-  # --- Env file ---
-  - name: check-env-file
+  # ── Env file ─────────────────────────────────────────────────────────────
+  - name: dotenv-db-host
     type: env_file
-    fields:
-      path: /etc/myapp/.env
-      key: APP_ENV
-      expected: production
+    params:
+      path: /opt/myapp/.env
+      key: DB_HOST
+      expected: db.internal
 
-  # --- System command ---
-  - name: check-syscmd
-    type: sys_command
-    fields:
-      command: "uname -s"
-      expected: Linux
-
-  # --- JSON field ---
-  - name: check-json-field
+  # ── JSON field ───────────────────────────────────────────────────────────
+  - name: config-api-version
     type: json_field
-    fields:
+    params:
       url: https://api.example.com/config
-      field: "settings.mode"
-      expected: production
+      field: version
+      expected: "2"
 
-  # --- Kubernetes pod ---
-  - name: check-k8s-pod
+  # ── Docker container ─────────────────────────────────────────────────────
+  - name: postgres-container
+    type: docker_container
+    params:
+      container: postgres
+      expected: running
+
+  # ── Kubernetes pod ───────────────────────────────────────────────────────
+  - name: api-pod-running
     type: k8s_pod
-    fields:
-      pod_prefix: myapp-
-      namespace: default
+    params:
+      pod_prefix: api-deployment
+      namespace: production
       expected: Running
 
-  # --- AWS S3 bucket access ---
-  - name: check-s3-bucket
-    type: s3_bucket_access
-    fields:
-      url: https://my-bucket.s3.amazonaws.com/healthcheck
-      expected: "200"
+  # ── systemd service ──────────────────────────────────────────────────────
+  - name: nginx-service
+    type: service_status
+    params:
+      service: nginx
+      expected: active
 
-  # --- AWS EC2 instance metadata ---
-  - name: check-ec2-metadata
+  # ── AWS S3 bucket access ──────────────────────────────────────────────────
+  - name: s3-assets-bucket
+    type: s3_bucket_access
+    params:
+      url: https://s3.amazonaws.com/my-assets-bucket
+      expected: 200
+
+  # ── AWS EC2 instance metadata ─────────────────────────────────────────────
+  - name: ec2-instance-type
     type: ec2_instance_metadata
-    fields:
+    params:
       key: instance-type
       expected: t3.medium
 
-  # --- AWS Lambda function ---
-  - name: check-lambda
+  # ── AWS Lambda function ───────────────────────────────────────────────────
+  - name: processor-lambda
     type: lambda_function
-    fields:
+    params:
       endpoint: https://lambda.us-east-1.amazonaws.com
-      function_name: my-function
-      expected: Active
+      function_name: my-processor
+      expected_state: Active
 
-  # --- AWS RDS instance ---
-  - name: check-rds
+  # ── AWS RDS instance ──────────────────────────────────────────────────────
+  - name: primary-rds
     type: rds_instance_status
-    fields:
+    params:
       endpoint: https://rds.us-east-1.amazonaws.com
-      db_identifier: my-db
+      db_identifier: prod-postgres
       expected: available
 
-  # --- AWS SQS queue attributes ---
-  - name: check-sqs
+  # ── AWS SQS queue attributes ──────────────────────────────────────────────
+  - name: order-queue-depth
     type: sqs_queue_attributes
-    fields:
+    params:
       endpoint: https://sqs.us-east-1.amazonaws.com
-      queue_url: https://sqs.us-east-1.amazonaws.com/123456789/my-queue
+      queue_url: https://sqs.us-east-1.amazonaws.com/123456789/orders
       attribute: ApproximateNumberOfMessages
       expected: "0"
 
-  # --- AWS IAM role policy ---
-  - name: check-iam-role
+  # ── AWS IAM role policy ───────────────────────────────────────────────────
+  - name: deploy-role-policy
     type: iam_role_policy
-    fields:
-      role_name: my-role
+    params:
+      endpoint: https://iam.amazonaws.com
+      role_name: deploy-role
       expected_policy: ReadOnlyAccess
 
-  # --- AWS Security Group rules ---
-  - name: check-security-group
+  # ── AWS Security Group rules ──────────────────────────────────────────────
+  - name: web-sg-rules
     type: security_group_rules
-    fields:
+    params:
       endpoint: https://ec2.us-east-1.amazonaws.com
       group_id: sg-0123456789abcdef0
-      expected: "443"
+      expected: "0.0.0.0/0:443"
 
-  # --- AWS DynamoDB table ---
-  - name: check-dynamodb
+  # ── AWS DynamoDB table ────────────────────────────────────────────────────
+  - name: sessions-table
     type: dynamodb_table
-    fields:
+    params:
       endpoint: https://dynamodb.us-east-1.amazonaws.com
-      table_name: my-table
-      expected: ACTIVE
+      table_name: sessions
+      expected_status: ACTIVE
 
-  # --- AWS ECS service ---
-  - name: check-ecs-service
+  # ── AWS ECS service ───────────────────────────────────────────────────────
+  - name: api-ecs-service
     type: ecs_service_status
-    fields:
+    params:
       endpoint: https://ecs.us-east-1.amazonaws.com
-      cluster: my-cluster
-      service_name: my-service
+      cluster: production
+      service_name: api-service
       expected: ACTIVE
 
-  # --- AWS SNS topic attributes ---
-  - name: check-sns-topic
+  # ── AWS SNS topic attributes ──────────────────────────────────────────────
+  - name: alerts-topic
     type: sns_topic_attributes
-    fields:
+    params:
       endpoint: https://sns.us-east-1.amazonaws.com
-      topic_arn: arn:aws:sns:us-east-1:123456789:my-topic
-      attribute: SubscriptionsConfirmed
-      expected: "1"
+      topic_arn: arn:aws:sns:us-east-1:123456789:alerts
+      attribute: DisplayName
+      expected: production-alerts
 
-  # --- AWS CloudWatch alarm ---
-  - name: check-cloudwatch-alarm
+  # ── AWS CloudWatch alarm ──────────────────────────────────────────────────
+  - name: cpu-alarm
     type: cloudwatch_alarm
-    fields:
+    params:
       endpoint: https://monitoring.us-east-1.amazonaws.com
-      alarm_name: high-cpu-alarm
+      alarm_name: high-cpu
       expected: OK
 
-  # --- AWS Route53 health check ---
-  - name: check-route53
+  # ── AWS Route53 health check ──────────────────────────────────────────────
+  - name: api-route53-health
     type: route53_health_check
-    fields:
+    params:
       endpoint: https://route53.amazonaws.com
-      health_check_id: abcd1234-ef56-7890-abcd-ef1234567890
-      expected: Healthy
+      health_check_id: abcd-1234-efgh-5678
+      expected: Success
 
-  # --- AWS EKS cluster status ---
-  - name: check-eks-cluster
+  # ── AWS EKS cluster status ────────────────────────────────────────────────
+  - name: prod-eks-cluster
     type: eks_cluster_status
-    fields:
+    params:
       endpoint: https://eks.us-east-1.amazonaws.com
-      cluster_name: prod-cluster
+      cluster_name: production
       expected: ACTIVE
+
+  # ── AWS Secrets Manager secret ────────────────────────────────────────────
+  - name: db-password-secret
+    type: secrets_manager_secret
+    params:
+      endpoint: https://secretsmanager.us-east-1.amazonaws.com
+      secret_id: prod/db/password
+      expected_status: active
+
+  # ── AWS ELBv2 target group health ─────────────────────────────────────────
+  - name: api-target-group
+    type: elbv2_target_group_health
+    params:
+      endpoint: https://elasticloadbalancing.us-east-1.amazonaws.com
+      target_group_arn: arn:aws:elasticloadbalancing:us-east-1:123456789:targetgroup/api/abc
+      expected: healthy
+
+  # ── AWS Kinesis stream status ─────────────────────────────────────────────
+  - name: events-kinesis-stream
+    type: kinesis_stream_status
+    params:
+      endpoint: https://kinesis.us-east-1.amazonaws.com
+      stream_name: events
+      expected: ACTIVE
+
+  # ── AWS Glue job status ───────────────────────────────────────────────────
+  - name: etl-glue-job
+    type: glue_job_status
+    params:
+      endpoint: https://glue.us-east-1.amazonaws.com
+      job_name: my-etl-pipeline
+      expected: READY
